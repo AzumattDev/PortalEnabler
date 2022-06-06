@@ -53,13 +53,17 @@ public class Patches
         }
     }
 
-    [HarmonyPatch(typeof(Game), nameof(Game.Awake))]
-    public static class ConnectPortalPrefix
+    [HarmonyPatch(typeof(Game), nameof(Game.Start))]
+    public static class GameStartPostfix
     {
         private static IEnumerator? coroutine;
 
         public static void Postfix(Game __instance)
         {
+            if (!ZNet.instance.IsServer()) {
+                return;
+            }
+
             ZDOMan zdoMan = ZDOMan.instance;
             long logTimestamp;
             long lastLogTimestamp = 0;
