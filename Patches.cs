@@ -7,12 +7,14 @@ using BepInEx.Configuration;
 using HarmonyLib;
 using UnityEngine;
 
+namespace PortalEnabler;
+
 public class Patches
 {
     public static long _logIntevervalSeconds { get; set; }
-    public static ConfigEntry<string> _portalPrefabName;
-    public static ConfigEntry<string> _onewayPortalTagPrefix;
-    public static ConfigEntry<float> _connectPortalCoroutineWait;
+    public static ConfigEntry<string>? _portalPrefabName;
+    public static ConfigEntry<string>? _onewayPortalTagPrefix;
+    public static ConfigEntry<float>? _connectPortalCoroutineWait;
 
 
     [HarmonyPatch(typeof(TeleportWorld), nameof(TeleportWorld.Awake))]
@@ -54,7 +56,7 @@ public class Patches
     [HarmonyPatch(typeof(Game), nameof(Game.ConnectPortals))]
     public static class ConnectPortalPrefix
     {
-        private static IEnumerator coroutine;
+        private static IEnumerator? coroutine;
 
         public static bool Prefix(Game __instance)
         {
@@ -62,7 +64,7 @@ public class Patches
             long logTimestamp;
             long lastLogTimestamp = 0;
 
-            IEnumerator ConnectPorts()
+            IEnumerator? ConnectPorts()
             {
                 while (true)
                 {
@@ -74,17 +76,21 @@ public class Patches
                     int index = 0;
                     bool getPrefabsComplete = false;
 
-                    HashSet<int> prefabHashCodes = new HashSet<int>
+                    if (_portalPrefabName != null)
                     {
-                        __instance.m_portalPrefab.name.GetStableHashCode(), _portalPrefabName.Value.GetStableHashCode()
-                    };
+                        HashSet<int> prefabHashCodes = new HashSet<int>
+                        {
+                            __instance.m_portalPrefab.name.GetStableHashCode(),
+                            _portalPrefabName.Value.GetStableHashCode()
+                        };
 
-                    do
-                    {
-                        getPrefabsComplete = GetAllZdosMatchingPrefabHashcodes(zdoMan, prefabHashCodes,
-                            __instance.m_tempPortalList, ref index);
-                        yield return null;
-                    } while (!getPrefabsComplete);
+                        do
+                        {
+                            getPrefabsComplete = GetAllZdosMatchingPrefabHashcodes(zdoMan, prefabHashCodes,
+                                __instance.m_tempPortalList, ref index);
+                            yield return null;
+                        } while (!getPrefabsComplete);
+                    }
 
                     foreach (ZDO zdo in __instance.m_tempPortalList)
                     {
@@ -98,7 +104,7 @@ public class Patches
                         ZDO targetZdo = zdoMan.GetZDO(targetZdoid);
                         if (tag == String.Empty || targetZdo == null ||
                             (targetZdo.GetString("tag", String.Empty) != tag &&
-                             !tag.StartsWith(_onewayPortalTagPrefix.Value)))
+                             !tag.StartsWith(_onewayPortalTagPrefix?.Value)))
                         {
                             zdo.SetOwner(zdoMan.GetMyID());
                             zdo.Set("target", ZDOID.None);
@@ -116,26 +122,30 @@ public class Patches
                         }
 
                         // If tag starts with oneway-prefix, look for matching portal that has tag without the prefix. 
-                        bool isOneWayPortal = tag.StartsWith(_onewayPortalTagPrefix.Value);
-                        ZDO targetZdo = __instance.FindRandomUnconnectedPortal(
-                            __instance.m_tempPortalList, zdo,
-                            isOneWayPortal ? tag.Remove(0, _onewayPortalTagPrefix.Value.Length) : tag);
-
-                        if (targetZdo != null)
+                        bool isOneWayPortal = tag.StartsWith(_onewayPortalTagPrefix?.Value);
+                        if (_onewayPortalTagPrefix != null)
                         {
-                            zdo.SetOwner(zdoMan.GetMyID());
-                            zdo.Set("target", targetZdo.m_uid);
+                            ZDO targetZdo = __instance.FindRandomUnconnectedPortal(
+                                __instance.m_tempPortalList, zdo,
+                                isOneWayPortal ? tag.Remove(0, _onewayPortalTagPrefix.Value.Length) : tag);
 
-                            // Only connect target if we are not a one-way portal.
-                            targetZdo.SetOwner(zdoMan.GetMyID());
-                            targetZdo.Set("target", isOneWayPortal ? ZDOID.None : zdo.m_uid);
+                            if (targetZdo != null)
+                            {
+                                zdo.SetOwner(zdoMan.GetMyID());
+                                zdo.Set("target", targetZdo.m_uid);
 
-                            zdoMan.ForceSendZDO(zdo.m_uid);
-                            zdoMan.ForceSendZDO(targetZdo.m_uid);
+                                // Only connect target if we are not a one-way portal.
+                                targetZdo.SetOwner(zdoMan.GetMyID());
+                                targetZdo.Set("target", isOneWayPortal ? ZDOID.None : zdo.m_uid);
+
+                                zdoMan.ForceSendZDO(zdo.m_uid);
+                                zdoMan.ForceSendZDO(targetZdo.m_uid);
+                            }
                         }
                     }
 
-                    yield return new WaitForSeconds(_connectPortalCoroutineWait.Value);
+                    if (_connectPortalCoroutineWait != null)
+                        yield return new WaitForSeconds(_connectPortalCoroutineWait.Value);
                 }
             }
 
