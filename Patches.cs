@@ -53,13 +53,17 @@ public class Patches
         }
     }
 
-    [HarmonyPatch(typeof(Game), nameof(Game.ConnectPortals))]
-    public static class ConnectPortalPrefix
+    [HarmonyPatch(typeof(Game), nameof(Game.Start))]
+    public static class GameStartPostfix
     {
         private static IEnumerator? coroutine;
 
-        public static bool Prefix(Game __instance)
+        public static void Postfix(Game __instance)
         {
+            if (!ZNet.instance.IsServer()) {
+                return;
+            }
+
             ZDOMan zdoMan = ZDOMan.instance;
             long logTimestamp;
             long lastLogTimestamp = 0;
@@ -80,7 +84,6 @@ public class Patches
                     {
                         HashSet<int> prefabHashCodes = new HashSet<int>
                         {
-                            __instance.m_portalPrefab.name.GetStableHashCode(),
                             _portalPrefabName.Value.GetStableHashCode()
                         };
 
@@ -152,8 +155,6 @@ public class Patches
             coroutine = ConnectPorts();
 
             __instance.StartCoroutine(coroutine);
-
-            return false;
         }
     }
 
